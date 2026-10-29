@@ -11,6 +11,7 @@ const urls = new Map(Object.entries(files).map(([path, url]) => [path.replace(/^
 
 let context: AudioContext | null = null;
 let master: GainNode | null = null;
+let muted = false;
 const buffers = new Map<string, AudioBuffer>();
 // Loops asked to play before their sound had loaded, started as soon as it arrives
 const waiting = new Map<string, () => void>();
@@ -104,6 +105,18 @@ class Loop {
     gain.setValueAtTime(gain.value, ctx.currentTime);
     gain.linearRampToValueAtTime(volume, ctx.currentTime + seconds);
   }
+}
+
+/** Turn all sound off and on again. */
+export function setMuted(m: boolean) {
+  muted = m;
+  const { ctx, out } = audio();
+  out.gain.cancelScheduledValues(ctx.currentTime);
+  out.gain.setValueAtTime(m ? 0 : 1, ctx.currentTime);
+}
+
+export function isMuted() {
+  return muted;
 }
 
 /** The music, on the title screen and in the game (one loop, so it carries on between them). */

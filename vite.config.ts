@@ -12,7 +12,9 @@ export default defineConfig(async () => ({
   server: {
     host: '0.0.0.0',
     port: 1420,
-    strictPort: true
+    strictPort: true,
+    allowHosts: true,
+    allowedHosts: ['ninjaverse.priyatham.in']
   },
   // to make use of `TAURI_ENV_DEBUG` and other env variables
   // https://v2.tauri.app/reference/environment-variables/

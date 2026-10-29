@@ -7,7 +7,7 @@ import App from './App';
 import './styles.css';
 
 // Import the AI helper
-import { initNemotronModel, isNemotronReady } from './utils/nemotronAI';
+import { initNemotronModel } from './utils/nemotronAI';
 
 // Kick off model loading as soon as the page loads
 (async () => {
@@ -18,15 +18,6 @@ import { initNemotronModel, isNemotronReady } from './utils/nemotronAI';
     console.log('🔁  Falling back to rule‑based decisions');
   }
 })();
-
-ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
-  <React.StrictMode>
-    <BrowserRouter>
-      <App />
-    </BrowserRouter>
-  </React.StrictMode>
-);
-
 
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
   <React.StrictMode>

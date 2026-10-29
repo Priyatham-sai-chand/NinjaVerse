@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 
 import background from '../assets/game/background.png';
 import ButtonSfx, { menuSfx } from '../components/ButtonSfx/ButtonSfx';
+import MuteButton from '../components/MuteButton';
 import { controlsHelp } from '../config/controls';
 import { music } from '../game/sound';
 
@@ -35,6 +36,8 @@ function TitleScreen() {
         imageRendering: 'pixelated'
       }}
     >
+      <MuteButton />
+
       <motion.h1
         className="font-pixel text-4xl text-teal-300 [text-shadow:4px_4px_0_#000]"
         initial={{ opacity: 0 }}

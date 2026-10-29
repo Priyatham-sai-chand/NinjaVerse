@@ -94,6 +94,22 @@ export function Ninja() {
     [subscribeKeys]
   );
 
+  // Subscribe to left/right movement keys so they are always fresh
+  useEffect(() => {
+    const leftUnsubscribe = subscribeKeys(
+      (state) => (state as Record<string, boolean>).left,
+      (down) => { }
+    );
+    const rightUnsubscribe = subscribeKeys(
+      (state) => (state as Record<string, boolean>).right,
+      (down) => { }
+    );
+    return () => {
+      leftUnsubscribe();
+      rightUnsubscribe();
+    };
+  }, [subscribeKeys]);
+
   useFrame((state, delta) => {
     const body = ref.current;
     if (!body) return;

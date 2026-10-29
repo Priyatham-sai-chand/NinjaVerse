@@ -32,6 +32,7 @@ import {
 import { music, play, wind } from '../../game/sound';
 import { resetWorld, world } from '../../game/world';
 import PauseMenu from '../Menus/PauseMenu';
+import MuteButton from '../../components/MuteButton';
 
 const gameKeys = new Set(['ArrowLeft', 'ArrowRight', 'ArrowUp']);
 const VIEW_HEIGHT = 7; // world units visible top to bottom (the art's own scale)
@@ -331,6 +332,8 @@ export default function GameScene() {
           <SoundWatcher />
         </Canvas>
       </KeyboardControls>
+
+      <MuteButton />
 
       {ended && <EndCard onReplay={replay} />}
 

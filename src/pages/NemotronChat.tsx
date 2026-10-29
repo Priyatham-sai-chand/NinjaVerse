@@ -1,22 +1,7 @@
-import React, { useRef, useState, useEffect, createContext } from "react";
+import React, { useRef, useState, useEffect } from "react";
 import { type MLCEngineInterface } from "@mlc-ai/web-llm";
 import { getNemotronEngine } from "../utils/nemotronEngine";
 
-export const NemotronContext = createContext<{
-  engine: MLCEngineInterface | null;
-  status: string;
-  progress: string;
-  progressPercent: number;
-  loading: boolean;
-  generating: boolean;
-}>({
-  engine: null,
-  status: 'Model not loaded',
-  progress: '',
-  progressPercent: 0,
-  loading: false,
-  generating: false,
-});
 
 type Message = {
   role: "user" | "assistant";

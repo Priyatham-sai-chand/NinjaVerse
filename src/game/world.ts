@@ -47,6 +47,9 @@ export const world = {
   }
 };
 
+// TEMP DEBUG: expose for headless repro (remove after diagnosis)
+(window as unknown as { __world?: typeof world }).__world = world;
+
 /** Start a fresh game: clock and Ember's abilities back to the beginning. */
 export function resetWorld() {
   world.time = 0;

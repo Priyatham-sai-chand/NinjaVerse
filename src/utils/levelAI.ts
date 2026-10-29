@@ -5,8 +5,10 @@
  * stays exactly as it was.
  */
 
-/** The Nebius key, hardcoded in source for the MVP. */
-export const NEBIUS_API_KEY = "v1.CmMKHHN0YXRpY2tleS1lMDBzYTZjYnNiYzBzcTZtdzASIXNlcnZpY2VhY2NvdW50LWUwMG5jNTIyeXJ6YjBwaGhiNDIMCIyu5dUGENawz74COgsIjLH9oAcQgIqoN0ACWgNlMDA.AAAAAAAAAAFVOZqoSCGvhe9QL8cq-iDYDSX8Md64RNFsUkLOLYJGKKibKbF3jeNhpbXzWOlgioB5pL3-zeqIVTRBf6ANngUE";
+// The Nebius key is sourced from the environment; defaults to empty string if not set.
+// It is expected to be set in a .env file at build time (e.g. VITE_NEBIUS_API_KEY=your_key_here).
+// Never commit actual keys to source control.
+export const NEBIUS_API_KEY = import.meta.env.VITE_NEBIUS_API_KEY ?? "";
 
 const ENDPOINT = "https://api.tokenfactory.nebius.com/v1/chat/completions";
 const MODEL = "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B";

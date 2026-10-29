@@ -1,7 +1,7 @@
 import React, { FormEvent, KeyboardEvent, useEffect, useRef, useState } from 'react';
 
 import { art } from '../game/art';
-import { askEmber, EmberAnswer } from '../game/ember';
+import { askEmber } from '../game/ember';
 import type { EmberAction } from '../game/ember';
 import { getNemotronEngine } from '../utils/nemotronEngine';
 
@@ -39,6 +39,8 @@ export function EmberChat({ onClose }: Props) {
       if (engine) {
         setReady(true);
         setStatus('Ember is awake');
+      } else if (!(navigator as any).gpu) {
+        setStatus('Ember needs WebGPU, which this browser has not enabled. Turn on the WebGPU flag (e.g. chrome://flags/#enable-webgpu) and reload, then press T to chat with Ember.');
       } else {
         setStatus('The model could not load');
       }
