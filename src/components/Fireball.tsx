@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { Group } from 'three';
+import { Group, Mesh, MeshBasicMaterial, PlaneGeometry } from 'three';
 
 import { Html } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
@@ -14,6 +14,7 @@ import {
   inDark,
   level,
   nextPlatform,
+  PX,
   standHeight,
   START,
   vineDeck,
@@ -21,10 +22,35 @@ import {
 } from '../game/level';
 import { world } from '../game/world';
 
-import { GameSprite } from './GameSprite';
+import { textureFor } from './GameSprite';
 
 const FLICKER = [art.fireball1, art.fireball2, art.fireball3, art.fireball4];
 const FLICKER_FPS = 8;
+
+// One geometry + material per flicker frame, built once and shared. Swapping
+// frames is a reference change, not new objects (no churn, no GC hitches).
+type FlickerAssets = {
+  geometry: PlaneGeometry;
+  material: MeshBasicMaterial;
+};
+const flickerCache = new Map<number, FlickerAssets>();
+function flickerAssets(i: number): FlickerAssets {
+  let a = flickerCache.get(i);
+  if (!a) {
+    const p = FLICKER[i];
+    a = {
+      geometry: new PlaneGeometry(p.width * PX, p.height * PX),
+      material: new MeshBasicMaterial({
+        color: '#ffffff',
+        map: textureFor(p.src),
+        toneMapped: false,
+        transparent: true
+      })
+    };
+    flickerCache.set(i, a);
+  }
+  return a;
+}
 const FOLLOW = 3; // how quickly it catches up when following the ninja
 const GUIDE = 5; // how quickly it flies to a platform it is showing
 const BEHIND = 1.1; // floats this far behind his shoulder
@@ -43,8 +69,8 @@ const DRAW = 14; // how closely it keeps to the head of the flame path while dra
  */
 export function Fireball() {
   const ref = useRef<Group>(null);
-  const [frame, setFrame] = useState(0);
-  const frameRef = useRef(0);
+  const meshRef = useRef<Mesh>(null);
+  const lastFrame = useRef(-1);
   // What the speech bubble shows ('' when hidden), and whether the warning "!" is up
   const [bubble, setBubble] = useState({ text: '', warning: false });
   const bubbleRef = useRef(bubble);
@@ -114,10 +140,16 @@ export function Fireball() {
       setBubble(bubbleRef.current);
     }
 
-    const nextFrame = Math.floor(t * FLICKER_FPS) % FLICKER.length;
-    if (nextFrame !== frameRef.current) {
-      frameRef.current = nextFrame;
-      setFrame(nextFrame);
+    // Swap the flicker frame on the live mesh: no React re-render, no new objects
+    const mesh = meshRef.current;
+    if (mesh) {
+      const nextFrame = Math.floor(t * FLICKER_FPS) % FLICKER.length;
+      if (nextFrame !== lastFrame.current) {
+        lastFrame.current = nextFrame;
+        const a = flickerAssets(nextFrame);
+        mesh.geometry = a.geometry;
+        mesh.material = a.material;
+      }
     }
   });
 
@@ -125,7 +157,7 @@ export function Fireball() {
 
   return (
     <group ref={ref} position={[START.x - BEHIND, START.y + ABOVE, 0.9]}>
-      <GameSprite art={FLICKER[frame]} anchor="center" shaded={false} />
+      <mesh ref={meshRef} geometry={flickerAssets(0).geometry} material={flickerAssets(0).material} />
       {(talking || warning) && (
         <Html position={[0, 0.55, 0]} zIndexRange={[20, 0]}>
           {/* Speech bubble: dark box with a gold border, its tail pointing down at Ember.

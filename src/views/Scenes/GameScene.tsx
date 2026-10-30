@@ -82,7 +82,13 @@ function CameraRig() {
     if (since === null) targetX += halfW * LOOK_AHEAD; // the route only runs right: keep the next ledge in view
     targetX = Math.min(Math.max(targetX, halfW), Math.max(halfW, LEVEL_WIDTH - halfW));
     camera.position.x += (targetX - camera.position.x) * k;
-    camera.position.y += (targetY - camera.position.y) * k;
+    // Vertical follow is slower and speed-limited, so a jump makes the view drift
+    // up and back down gently instead of surging (which reads as a stutter).
+    const ky = placed.current ? 1 - Math.exp(-3 * delta) : 1;
+    let dy = (targetY - camera.position.y) * ky;
+    const maxDy = 4 * delta;
+    dy = Math.max(-maxDy, Math.min(maxDy, dy));
+    camera.position.y += dy;
   });
   return null;
 }

@@ -1,8 +1,9 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { Group } from 'three';
+import React, { useEffect, useRef } from 'react';
 
 import { Html, useKeyboardControls } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
+
+import { Group, Mesh, MeshBasicMaterial, PlaneGeometry, Color } from 'three';
 
 import { art } from '../game/art';
 import { endingTime, lineFor, STAND_X, T } from '../game/ending';
@@ -16,6 +17,7 @@ import {
   MAX_STEP,
   Piece,
   pieceState,
+  PX,
   standHeight,
   START,
   touch,
@@ -26,7 +28,7 @@ import {
 import { play, playAny } from '../game/sound';
 import { world } from '../game/world';
 
-import { GameSprite } from './GameSprite';
+import { textureFor } from './GameSprite';
 
 type Pose = 'ready' | 'run' | 'leap' | 'rise' | 'fall';
 
@@ -58,23 +60,53 @@ function landSound(piece: Piece, speed: number) {
   if (piece.art === art.vineBridge) playAny(['leaf-rustle-1', 'leaf-rustle-2'], { volume: 0.5 });
 }
 
+// One geometry, material and position per pose, built once and shared for the whole game.
+// Swapping poses then costs a reference change, not a new object (no churn, no GC hitches).
+type PoseAssets = {
+  geometry: PlaneGeometry;
+  material: MeshBasicMaterial;
+  position: [number, number, number];
+};
+const poseCache = new Map<Pose, PoseAssets>();
+const SHADED = new Color('#140c1c');
+const WHITE = new Color('#ffffff');
+
+function poseAssets(pose: Pose): PoseAssets {
+  let a = poseCache.get(pose);
+  if (!a) {
+    const p = poses[pose];
+    a = {
+      geometry: new PlaneGeometry(p.width * PX, p.height * PX),
+      material: new MeshBasicMaterial({
+        color: '#ffffff',
+        map: textureFor(p.src),
+        toneMapped: false,
+        transparent: true
+      }),
+      position: [(p.width / 2 - p.originX) * PX, (p.height * PX) / 2, 0]
+    };
+    poseCache.set(pose, a);
+  }
+  return a;
+}
+
 /**
  * The ninja. Left/Right run, Up jumps, and Up again while in the air does
  * one ninja high jump. He rides moving platforms, sets off crumbling blocks by landing
  * on them, makes false platforms vanish by getting close, gets pushed by the wind, and
  * falling off the level sends him back to the last glowing checkpoint he reached.
  * The art is drawn facing right and is flipped when he runs left.
+ *
+ * All per-frame changes (pose, facing, speech line) are applied imperatively on the
+ * three.js objects — no React re-renders, so jumps never hitch.
  */
 export function Ninja() {
-  const ref = useRef<Group>(null);
+  const bodyRef = useRef<Group>(null);
+  const flipRef = useRef<Group>(null);
+  const meshRef = useRef<Mesh>(null);
+  const bubbleRef = useRef<HTMLDivElement>(null);
+  const lineRef = useRef<HTMLSpanElement>(null);
   const [subscribeKeys, getKeys] = useKeyboardControls();
-  // How he looks, and what he is saying (only in the ending)
-  const [look, setLook] = useState<{ pose: Pose; facing: number; line: string }>({
-    facing: 1,
-    line: '',
-    pose: 'ready'
-  });
-  const lookRef = useRef(look);
   const velocityY = useRef(0);
   const jumpTapped = useRef(false);
   const ninjaJumpUsed = useRef(false);
@@ -111,7 +143,7 @@ export function Ninja() {
   }, [subscribeKeys]);
 
   useFrame((state, delta) => {
-    const body = ref.current;
+    const body = bodyRef.current;
     if (!body) return;
     // Frozen while paused or talking to Ember (presses made meanwhile don't count)
     if (world.paused) {
@@ -125,6 +157,7 @@ export function Ninja() {
     const before = lastTime.current || now;
     lastTime.current = now;
 
+    // One floor lookup serves every grounded check below
     const floor = floorBelow(pos.x, pos.y, now);
     const grounded = floor !== null && pos.y <= floor.y + 0.001 && velocityY.current <= 0;
 
@@ -159,7 +192,7 @@ export function Ninja() {
       const vines = vinesBlock(pos.x, nextX, pos.y, now);
       if (!wall && !vines) pos.x = Math.min(nextX, LEVEL_END); // the far wall of the last building
     }
-    let { facing } = lookRef.current;
+    let facing = 1;
     if (dx !== 0) facing = dx;
     // He watches Ember light the lantern, then turns to look out over the glowing city
     if (ending && dx === 0) facing = since < T.pullIn ? 1 : -1;
@@ -190,7 +223,7 @@ export function Ninja() {
     jumpTapped.current = false;
 
     // Running along a surface: stick to it over small bumps and dips (and rising/sinking platforms)
-    const below = floorBelow(pos.x, pos.y, now);
+    const below = floor;
     const stick = grounded && velocityY.current <= 0 && below !== null && pos.y - below.y <= MAX_STEP;
     if (stick) {
       pos.y = below.y;
@@ -242,10 +275,10 @@ export function Ninja() {
       velocityY.current,
       0
     );
-    world.grounded = floorBelow(pos.x, pos.y, now) !== null && velocityY.current === 0;
+    const onFloor = floor !== null && velocityY.current === 0;
+    world.grounded = onFloor;
 
-    // Which pose to show
-    const onFloor = floorBelow(pos.x, pos.y, now) !== null && velocityY.current === 0;
+    // Which pose to show: swap the cached pose assets on the mesh directly (no re-render)
     let pose: Pose = 'ready';
     if (!onFloor) {
       if (velocityY.current > 0) pose = ninjaJumpUsed.current ? 'rise' : 'leap';
@@ -253,30 +286,52 @@ export function Ninja() {
     } else if (dx !== 0) {
       pose = RUN_CYCLE[Math.floor(now * RUN_FPS) % RUN_CYCLE.length];
     }
+    const mesh = meshRef.current;
+    if (mesh) {
+      const a = poseAssets(pose);
+      if (mesh.geometry !== a.geometry) {
+        mesh.geometry = a.geometry;
+        mesh.material = a.material;
+        mesh.position.set(a.position[0], a.position[1], a.position[2]);
+      }
+      if (world.shade > 0) {
+        (mesh.material as MeshBasicMaterial).color.copy(WHITE).lerp(SHADED, world.shade);
+      }
+    }
 
+    // Face the way he runs (flip the whole sprite group)
+    if (flipRef.current && flipRef.current.scale.x !== facing) flipRef.current.scale.x = facing;
+
+    // Speech bubble: update the live DOM node, no React state
     const line = ending ? lineFor('ninja', since) : '';
-    if (pose !== lookRef.current.pose || facing !== lookRef.current.facing || line !== lookRef.current.line) {
-      lookRef.current = { facing, line, pose };
-      setLook(lookRef.current);
+    if (bubbleRef.current) {
+      if (bubbleRef.current.style.display !== (line ? 'block' : 'none')) {
+        bubbleRef.current.style.display = line ? 'block' : 'none';
+      }
+      if (lineRef.current && lineRef.current.textContent !== line) {
+        lineRef.current.textContent = line;
+      }
     }
   });
 
   return (
-    <group ref={ref} position={[START.x, START.y, 1]}>
-      <group scale={[look.facing, 1, 1]}>
-        <GameSprite art={poses[look.pose]} />
+    <group ref={bodyRef} position={[START.x, START.y, 1]}>
+      <group ref={flipRef} scale={[1, 1, 1]}>
+        <mesh ref={meshRef} />
       </group>
-      {look.line && (
-        <Html position={[0, 2.1, 0]} zIndexRange={[20, 0]}>
-          {/* The ninja's speech bubble: teal border, like his scarf */}
-          <div className="pointer-events-none relative -translate-x-1/2 -translate-y-full pb-3">
-            <div className="relative w-56 rounded-md border-[3px] border-cyan-400 bg-[#0b1620] px-3 py-2 text-center font-pixel text-[9px] leading-4 text-cyan-50 shadow-[0_0_0_2px_#000]">
-              {look.line}
-              <div className="absolute -bottom-[9px] left-1/2 h-3 w-3 -translate-x-1/2 rotate-45 border-b-[3px] border-r-[3px] border-cyan-400 bg-[#0b1620]" />
-            </div>
+      <Html position={[0, 2.1, 0]} zIndexRange={[20, 0]}>
+        {/* The ninja's speech bubble: teal border, like his scarf */}
+        <div
+          ref={bubbleRef}
+          className="pointer-events-none relative -translate-x-1/2 -translate-y-full pb-3"
+          style={{ display: 'none' }}
+        >
+          <div className="relative w-56 rounded-md border-[3px] border-cyan-400 bg-[#0b1620] px-3 py-2 text-center font-pixel text-[9px] leading-4 text-cyan-50 shadow-[0_0_0_2px_#000]">
+            <span ref={lineRef}></span>
+            <div className="absolute -bottom-[9px] left-1/2 h-3 w-3 -translate-x-1/2 rotate-45 border-b-[3px] border-r-[3px] border-cyan-400 bg-[#0b1620]" />
           </div>
-        </Html>
-      )}
+        </div>
+      </Html>
     </group>
   );
 }

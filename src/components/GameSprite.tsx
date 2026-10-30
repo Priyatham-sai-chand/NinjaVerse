@@ -52,7 +52,7 @@ export const GameSprite = memo(({ anchor = 'bottom', art, shaded = true, tint = 
   );
   const base = useMemo(() => new Color(tint), [tint]);
   useFrame(() => {
-    if (shaded) material.color.copy(base).lerp(SILHOUETTE, world.shade);
+    if (shaded && world.shade > 0) material.color.copy(base).lerp(SILHOUETTE, world.shade);
   });
   const x = (art.width / 2 - art.originX) * PX;
   const y = anchor === 'bottom' ? (art.height * PX) / 2 : 0;
